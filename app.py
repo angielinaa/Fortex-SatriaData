@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.express as px
 import google.generativeai as genai
 import os
-
+import csv
+from datetime import datetime
 # ==========================================
 # KONFIGURASI HALAMAN UTAMA (GHINA)
 # ==========================================
@@ -55,16 +56,26 @@ st.markdown("""
 # ==========================================
 # FUNGSI MEMUAT DATA (ANTI-EROR) (CINTA)
 # ==========================================
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_real_data(uploaded_file=None):
+    # Logika diperketat: Jika file diunggah manual, prioritaskan itu.
     if uploaded_file is not None:
-        return pd.read_csv(uploaded_file)
+        try:
+            return pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"Gagal membaca file unggahan: {e}")
+            return pd.DataFrame()
 
+    # Fallback ke data lokal dengan error handling yang jelas
     file_path = "data/Rekap_Kesusilaan_Lengkap_dengan_Korban_FINAL_BALANCED.csv"
     if os.path.exists(file_path):
-        return pd.read_csv(file_path)
-    else:
-        return pd.DataFrame()
+        try:
+            return pd.read_csv(file_path)
+        except Exception as e:
+            st.error(f"Data lokal rusak atau tidak terbaca: {e}")
+            return pd.DataFrame()
+
+    return pd.DataFrame()
 
 
 # ==========================================
@@ -80,65 +91,114 @@ menu = st.sidebar.radio("Pilar Navigasi:",
 # MENU 1: PETA KEADILAN (CINTA)
 # ==========================================
 if menu == "Peta Keadilan (Data)":
-    st.title("🗺️ Peta Keadilan")
-    st.markdown("Transparansi data sebaran kasus pelanggaran kesusilaan di Indonesia.")
+    st.title("🗺️ Peta Keadilan & Disparitas")
+    st.markdown("Transparansi geospasial sebaran kasus pelanggaran kesusilaan di Indonesia.")
 
-    df = load_real_data()
+    with st.expander("⚙️ Konfigurasi Data Sumber", expanded=False):
+        file_manual = st.file_uploader("Tim Juri: Unggah Dataset Evaluasi (.csv)", type=["csv"])
+
+    df = load_real_data(file_manual)
 
     if df.empty:
-        st.warning("⚠️ Data sistem tidak ditemukan. Silakan unggah file CSV 'Rekap Kesusilaan' secara manual.")
-        file_manual = st.file_uploader("Unggah Dataset (.csv)", type=["csv"])
-        if file_manual is not None:
-            df = load_real_data(file_manual)
-            st.success("Data berhasil dimuat! Silakan gulir ke bawah.")
+        st.error("🛑 FATAL: Dataset tidak ditemukan. Harap unggah dataset CSV melalui menu di atas.")
+        st.stop()
 
-    if not df.empty:
-        col1, col2 = st.columns(2)
-        with col1:
-            provinsi_filter = st.multiselect("Filter Provinsi:", options=df["Provinsi"].dropna().unique(),
-                                             default=df["Provinsi"].dropna().unique()[:3])
-        with col2:
-            klasifikasi_filter = st.multiselect("Filter Klasifikasi:",
-                                                options=df["Klasifikasi_Tindak_Pidana"].dropna().unique(),
-                                                default=df["Klasifikasi_Tindak_Pidana"].dropna().unique()[:3])
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎛️ Filter Peta")
 
-        df_filtered = df[
-            (df["Provinsi"].isin(provinsi_filter)) & (df["Klasifikasi_Tindak_Pidana"].isin(klasifikasi_filter))]
+    prov_opts = sorted(df["Provinsi"].dropna().unique())
+    klas_opts = sorted(df["Klasifikasi_Tindak_Pidana"].dropna().unique())
 
-        st.markdown("### 📊 Ringkasan Deskriptif")
-        m1, m2, m3 = st.columns(3)
-        m1.metric(label="Total Putusan", value=len(df_filtered))
-        m2.metric(label="Locus Delicti Terbanyak",
-                  value=df_filtered["Provinsi"].mode()[0] if not df_filtered.empty else "-")
-        m3.metric(label="Modus Dominan",
-                  value=df_filtered["Klasifikasi_Tindak_Pidana"].mode()[0] if not df_filtered.empty else "-")
+    provinsi_filter = st.sidebar.multiselect("Provinsi:", options=prov_opts, default=prov_opts)
+    klasifikasi_filter = st.sidebar.multiselect("Klasifikasi Perkara:", options=klas_opts, default=klas_opts[:3])
 
-        st.markdown("---")
-        tab1, tab2 = st.tabs(["🔴 Analisis Disparitas Wilayah", "📈 Korelasi Demografi & Hukuman"])
+    # Eksekusi Filter
+    df_filtered = df[(df["Provinsi"].isin(provinsi_filter)) & (df["Klasifikasi_Tindak_Pidana"].isin(klasifikasi_filter))]
 
-        with tab1:
-            st.markdown("#### Sebaran Konsentrasi Kasus Berdasarkan Wilayah")
-            prov_count = df_filtered['Provinsi'].value_counts().reset_index()
-            prov_count.columns = ['Provinsi', 'Jumlah Kasus']
+    # 3. Hirarki Metrik yang Jelas
+    st.markdown("### 📊 Ringkasan Data (Filtered)")
+    m1, m2, m3 = st.columns(3)
 
-            fig_tree = px.treemap(
-                prov_count, path=['Provinsi'], values='Jumlah Kasus',
-                color='Jumlah Kasus', color_continuous_scale='Reds',
-                title='Peta Kepadatan Kasus Kesusilaan'
+    total_kasus = len(df_filtered)
+    m1.metric(label="Total Putusan Tersaring", value=f"{total_kasus:,}")
+    m2.metric(label="Locus Delicti Terbanyak", value=df_filtered["Provinsi"].mode()[0] if total_kasus > 0 else "-")
+    m3.metric(label="Modus Dominan", value=df_filtered["Klasifikasi_Tindak_Pidana"].mode()[0] if total_kasus > 0 else "-")
+
+    st.markdown("---")
+    st.subheader("🔴 Heatmap Distribusi Perkara Nasional")
+
+    if total_kasus > 0:
+        prov_count = df_filtered['Provinsi'].value_counts().reset_index()
+        prov_count.columns = ['Provinsi', 'Jumlah Kasus']
+
+        import json
+        import requests
+        geojson_url = "https://raw.githubusercontent.com/superpikar/indonesia-geojson/master/indonesia-province-simple.json"
+
+        try:
+            # Gunakan st.cache_data jika memanggil API eksternal agar tidak lag
+            @st.cache_data
+            def get_geojson():
+                return requests.get(geojson_url).json()
+
+            geojson_id = get_geojson()
+
+            fig_map = px.choropleth(
+                prov_count,
+                geojson=geojson_id,
+                locations='Provinsi',
+                featureidkey='properties.Propinsi', # Sesuaikan dengan key di file GeoJSON
+                color='Jumlah Kasus',
+                color_continuous_scale='Reds',
+                title="Kepadatan Locus Delicti"
             )
-            st.plotly_chart(fig_tree, use_container_width=True)
+            fig_map.update_geos(fitbounds="locations", visible=False)
+            fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
 
-        with tab2:
-            st.markdown("#### Analisis Disparitas Vonis Kurungan")
-            if 'Umur_Korban' in df_filtered.columns and 'Lama_Kurungan' in df_filtered.columns:
-                fig_scatter = px.scatter(
-                    df_filtered, x='Umur_Korban', y='Lama_Kurungan',
-                    color='Klasifikasi_Tindak_Pidana', hover_data=['Nomor_Putusan'],
-                    title='Korelasi Umur Korban dan Lama Hukuman'
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            else:
-                st.warning("Kolom Umur_Korban/Lama_Kurungan tidak tersedia.")
+            st.plotly_chart(fig_map, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"Gagal memuat peta geospasial: {e}. Menampilkan grafik batang sebagai alternatif.")
+            fig_bar = px.bar(prov_count, x='Provinsi', y='Jumlah Kasus', color='Jumlah Kasus', color_continuous_scale='Reds')
+            st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("Tidak ada data perkara untuk filter tersebut.")
+
+    # 5. Analisis Lanjutan: Gunakan Boxplot untuk Disparitas (Lebih akurat dari Scatter Plot)
+    st.markdown("---")
+    st.markdown("### ⚖️ Analisis Lanjutan")
+
+    # 1. DEKLARASI TAB DI SINI
+    tab_disparitas, tab_profil = st.tabs(["⚖️ Analisis Disparitas Vonis", "👥 Distribusi Umur Korban"])
+
+    # 2. MASUKKAN GRAFIK BOXPLOT KE DALAM TAB PERTAMA
+    with tab_disparitas:
+        if 'Lama_Kurungan' in df_filtered.columns and total_kasus > 0:
+            fig_box = px.box(
+                df_filtered,
+                x='Provinsi',
+                y='Lama_Kurungan',
+                color='Klasifikasi_Tindak_Pidana',
+                title='Sebaran Lama Hukuman Berdasarkan Wilayah'
+            )
+            st.plotly_chart(fig_box, use_container_width=True)
+        else:
+            st.warning("Variabel 'Lama_Kurungan' tidak tersedia di dataset untuk analisis disparitas.")
+
+    # 3. MASUKKAN GRAFIK HISTOGRAM KE DALAM TAB KEDUA
+    with tab_profil:
+        if total_kasus > 0 and 'Umur_Korban' in df_filtered.columns:
+            fig_hist = px.histogram(
+                df_filtered,
+                x='Umur_Korban',
+                color='Klasifikasi_Tindak_Pidana',
+                title='Pola Umur Korban dalam Kasus',
+                nbins=20
+            )
+            fig_hist.update_layout(bargap=0.1)
+            st.plotly_chart(fig_hist, use_container_width=True)
+        else:
+            st.warning("⚠️ Kolom Umur_Korban tidak tersedia.")
 
 # ==========================================
 # MENU 2: KILAS PERKARA & AI SUMMARIZER (ENZY)
@@ -204,15 +264,35 @@ elif menu == "Safe Space & SOS (Aksi)":
     with col_sos2:
         st.error("### 🔴 TOMBOL DARURAT (SOS)")
         st.markdown('<div class="btn-sos">', unsafe_allow_html=True)
-        if st.button("🚨 HUBUNGI BANTUAN DARURAT SEKARANG", use_container_width=True):
+        if st.button("🚨 HUBUNGI BANTUAN DARURAT  SEKARANG", use_container_width=True):
             st.warning("Hotline SAPA 129: 129 / 08111-129-129 (WhatsApp)")
         st.markdown('</div>', unsafe_allow_html=True)
 
+
     st.markdown("---")
     st.markdown("### 📝 Form Lapor Anonim")
+
+    # Perbaikan indentasi: pastikan 'with' sejajar dengan 'st.markdown' di atasnya
     with st.form("form_anonim"):
         lokasi = st.text_input("Lokasi Kejadian:")
         kronologi = st.text_area("Kronologi Singkat:")
         submitted = st.form_submit_button("Kirim Laporan Anonim")
+
+        # Indentasi di dalam form
         if submitted:
-            st.success("Laporan berhasil dikirim secara anonim dan aman!")
+            if lokasi and kronologi:
+                file_laporan = "laporan_anonim.csv"
+                file_exists = os.path.isfile(file_laporan)
+
+                import csv
+                from datetime import datetime
+
+                with open(file_laporan, mode='a', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    if not file_exists:
+                        writer.writerow(['Timestamp', 'Lokasi', 'Kronologi'])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), lokasi, kronologi])
+
+                st.success("Laporan berhasil dikirim secara anonim dan aman!")
+            else:
+                st.warning("Mohon isi lokasi dan kronologi terlebih dahulu.")
