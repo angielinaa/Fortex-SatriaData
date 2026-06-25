@@ -10,47 +10,146 @@ from datetime import datetime
 # KONFIGURASI HALAMAN UTAMA (GHINA)
 # ==========================================
 st.set_page_config(page_title="Fortex | Ruang Aman & Keadilan", page_icon="🛡️", layout="wide")
-
 # ==========================================
 # CUSTOM CSS APPLE-ESQUE (GHINA)
 # ==========================================
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #FAFAFA;
-        font-family: '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', sans-serif;
+    /* WARNA UTAMA */
+
+.stApp{
+    background:#F4F7FC;
+    color:#1F2937;
+}
+
+/* SIDEBAR */
+
+[data-testid="stSidebar"]{
+    background:linear-gradient(180deg,#0F172A,#1E3A8A);
+    color:white;
+    padding-top:25px;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] label{
+    color:white !important;
+}
+
+/* JUDUL */
+
+h1{
+    font-size:48px !important;
+    font-weight:800 !important;
+    color:#0F172A !important;
+}
+
+h2{
+    font-weight:700 !important;
+}
+
+h3{
+    font-weight:600 !important;
+}
+
+/* TOMBOL */
+
+.stButton button{
+    width:100%;
+    border:none;
+    border-radius:14px;
+    padding:14px;
+    background:linear-gradient(90deg,#2563EB,#1D4ED8);
+    color:white;
+    font-size:16px;
+    font-weight:600;
+    transition:all 0.3s ease;
+    cursor:pointer;
+}
+
+.stButton button:hover{
+    transform:translateY(-3px);
+    box-shadow:0 12px 24px rgba(37,99,235,.25);
+}
+
+.stButton button:active{
+    transform:scale(0.98);
+}
+
+}
+
+/* INPUT */
+
+.stTextInput input{
+
+    border-radius:12px;
+
+}
+
+.stTextArea textarea{
+
+    border-radius:12px;
+
+}
+
+/* CARD METRIC */
+
+[data-testid="metric-container"]{
+    background:#FFFFFF;
+    border:1px solid #E5E7EB;
+    border-radius:20px;
+    padding:25px;
+    box-shadow:0 8px 20px rgba(15,23,42,.08);
+    transition:0.3s;
+}
+
+[data-testid="metric-container"]:hover{
+    transform:translateY(-5px);
+    box-shadow:0 14px 28px rgba(37,99,235,.18);
+}
+
+}
+
+/* EXPANDER */
+
+.streamlit-expanderHeader{
+
+    font-weight:600;
+
+}
+
+/* ALERT */
+
+.stAlert{
+    border-radius:16px;
+}
+
+/* ========================= */
+/* ANIMASI HALAMAN */
+/* ========================= */
+
+@keyframes fadeIn{
+
+    from{
+        opacity:0;
+        transform:translateY(15px);
     }
-    [data-testid="stSidebar"] {
-        background-color: #FFFFFF;
-        border-right: 1px solid #EAEAEA;
+
+    to{
+        opacity:1;
+        transform:translateY(0);
     }
-    .stButton>button {
-        border-radius: 10px;
-        border: 1px solid #EAEAEA;
-        font-weight: 500;
-        background-color: #FFFFFF;
-        transition: all 0.3s ease;
-    }
-    .stButton>button:hover {
-        border-color: #007AFF;
-        color: #007AFF;
-        background-color: #F5F5F7;
-    }
-    .btn-sos > .stButton>button {
-        background-color: #FF3B30 !important;
-        color: white !important;
-        font-weight: bold !important;
-        border: none !important;
-        padding: 15px 0px !important;
-        box-shadow: 0 4px 14px 0 rgba(255, 59, 48, 0.4);
-    }
-    .btn-sos > .stButton>button:hover {
-        background-color: #D70015 !important;
-        box-shadow: 0 6px 20px 0 rgba(255, 59, 48, 0.6);
-    }
-    h1 { font-weight: 700 !important; color: #1D1D1F !important; }
-    h3 { font-weight: 600 !important; color: #333333 !important; }
-    </style>
+
+}
+
+.block-container{
+
+    animation:fadeIn .5s ease;
+
+}
+
+</style>
+
 """, unsafe_allow_html=True)
 
 
@@ -80,12 +179,36 @@ def load_real_data(uploaded_file=None):
 # ==========================================
 # NAVIGASI SIDEBAR UTAMA
 # ==========================================
-st.sidebar.title("🛡️ Fortex")
-st.sidebar.markdown("Kekuatan, Ketangguhan, dan Transparansi Hukum.")
-st.sidebar.markdown("---")
-menu = st.sidebar.radio("Pilar Navigasi:",
-                        ["Peta Keadilan (Data)", "Kilas Perkara (Analisis AI)", "Safe Space & SOS (Aksi)"])
+st.sidebar.markdown("""
+# 🛡️ FORTEX
 
+### Dashboard Analisis Hukum
+
+Platform visualisasi dan analisis
+kasus kesusilaan berbasis data & AI.
+
+---
+""")
+
+menu = st.sidebar.radio(
+    "📌 Pilih Menu",
+    [
+        "Peta Keadilan (Data)",
+        "Kilas Perkara (Analisis AI)",
+        "Safe Space & SOS (Aksi)"
+    ]
+)
+
+st.sidebar.markdown("---")
+
+st.sidebar.info("""
+**Fortex v1.0**
+
+Dashboard analisis kasus
+kesusilaan berbasis AI.
+
+© 2026
+""")
 # ==========================================
 # MENU 1: PETA KEADILAN (CINTA)
 # ==========================================
@@ -99,8 +222,28 @@ if menu == "Peta Keadilan (Data)":
     df = load_real_data(file_manual)
 
     if df.empty:
-        st.error("🛑 FATAL: Dataset tidak ditemukan. Harap unggah dataset CSV melalui menu di atas.")
+        st.info("📂 Belum ada dataset yang dimuat.")
+        st.markdown("""
+### Cara Menggunakan
+
+1. Klik **Konfigurasi Data Sumber**.
+2. Upload file **CSV**.
+3. Setelah dataset berhasil dimuat, dashboard akan menampilkan visualisasi secara otomatis.
+""")
         st.stop()
+        # ==========================
+        # INFO DATASET DI SIDEBAR
+        # ==========================
+        st.sidebar.markdown("---")
+        st.sidebar.success("✅ Dataset Loaded")
+
+        st.sidebar.metric(
+        label="Jumlah Data",
+        value=len(df)
+    )
+# ===== Preview Dataset =====
+    with st.expander("📄 Preview Dataset", expanded=False):
+        st.dataframe(df.head(), use_container_width=True)
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("🎛️ Filter Peta")
@@ -113,14 +256,29 @@ if menu == "Peta Keadilan (Data)":
 
     df_filtered = df[(df["Provinsi"].isin(provinsi_filter)) & (df["Klasifikasi_Tindak_Pidana"].isin(klasifikasi_filter))]
 
-    st.markdown("### 📊 Ringkasan Data (Filtered)")
-    m1, m2, m3 = st.columns(3)
+    st.markdown("## 📊 Ringkasan Dashboard")
 
     total_kasus = len(df_filtered)
-    m1.metric(label="Total Putusan Tersaring", value=f"{total_kasus:,}")
-    m2.metric(label="Locus Delicti Terbanyak", value=df_filtered["Provinsi"].mode()[0] if total_kasus > 0 else "-")
-    m3.metric(label="Modus Dominan", value=df_filtered["Klasifikasi_Tindak_Pidana"].mode()[0] if total_kasus > 0 else "-")
 
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+        label="📁 Total Kasus",
+        value=f"{total_kasus:,}"
+    )
+
+    with col2:
+        st.metric(
+        label="📍 Provinsi Dominan",
+        value=df_filtered["Provinsi"].mode()[0] if total_kasus > 0 else "-"
+    )
+
+    with col3:
+        st.metric(
+        label="⚖️ Jenis Perkara Dominan",
+        value=df_filtered["Klasifikasi_Tindak_Pidana"].mode()[0] if total_kasus > 0 else "-"
+    )
     st.markdown("---")
     st.subheader("🔴 Heatmap Distribusi Perkara Nasional")
 
@@ -248,13 +406,24 @@ elif menu == "Kilas Perkara (Analisis AI)":
 # MENU 3: SAFE SPACE & SOS (GHINA)
 # ==========================================
 elif menu == "Safe Space & SOS (Aksi)":
-    st.title("🚨 Safe Space & SOS")
+    st.markdown("""
+# 🚨 Safe Space
+
+Ruang aman untuk melapor,
+mencari bantuan,
+dan menghubungi layanan darurat.
+""")
     st.markdown("Jangan takut bersuara. Kami menyediakan ruang aman.")
 
     st.markdown("---")
     col_sos1, col_sos2, col_sos3 = st.columns([1, 2, 1])
     with col_sos2:
-        st.error("### 🔴 TOMBOL DARURAT (SOS)")
+        st.warning("""
+## 🚨 Keadaan Darurat?
+
+Klik tombol di bawah
+untuk menghubungi layanan bantuan.
+""")
         st.markdown('<div class="btn-sos">', unsafe_allow_html=True)
         if st.button("🚨 HUBUNGI BANTUAN DARURAT SEKARANG", use_container_width=True):
             st.warning("Hotline SAPA 129: 129 / 08111-129-129 (WhatsApp)")
